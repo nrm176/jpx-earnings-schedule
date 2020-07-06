@@ -74,7 +74,6 @@ class EarningsDataController():
     def cleanup(self, dfs):
         combined_df = pd.concat(dfs)
         combined_df['date'] = combined_df['date'].replace('未定', '')
-        # combined_df = combined_df.set_index('id')
         combined_df['date'] = pd.to_datetime(combined_df['date'])
         combined_df['date'] = combined_df.date.astype(object).where(combined_df.date.notnull(), None)
         return combined_df
