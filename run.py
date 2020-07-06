@@ -21,7 +21,7 @@ PATTERN_MAPPING = {
     '第３四半期': '3Q', '第２四半期': '2Q', '第１四半期': '1Q', '本決算': '4Q', '-': ''
 }
 
-BASE_FILE_PATH = '/tmp' if ON_HEROKU else './'
+BASE_FILE_PATH = '/tmp/' if ON_HEROKU else './'
 
 class EarningsDataController():
     def __init__(self):
