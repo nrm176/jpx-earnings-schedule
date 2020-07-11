@@ -3,15 +3,19 @@ from bs4 import BeautifulSoup
 import requests
 from sqlalchemy.dialects import postgresql
 from model import EarningsSchedule, Base
-from db import session, ENGINE
 import os
 from dotenv import load_dotenv
 from os.path import join, dirname
+import traceback
+import psycopg2
+import numpy as np
 
 ON_HEROKU = os.environ.get("ON_HEROKU", False)
 if not ON_HEROKU:
     dotenv_path = join(dirname(__file__), '.env')
     load_dotenv(dotenv_path)
+
+from db import session, ENGINE
 
 JPX_URL = os.environ.get('JPX_URL')
 DATABASE_URL = os.environ.get('DATABASE_URL')
@@ -65,17 +69,18 @@ class EarningsDataController():
         dfs = []
         for file_path in file_paths:
             idx_key = file_path.split('/')[-1].replace('.xls', '')
+            str_key = idx_key.split('_')[0]
             df = pd.read_excel(file_path, skiprows=2)
             df = self.clean_dataframe(df)
-            df['id'] = idx_key + '-' + df['code']
+            df['date']=df['date'].replace('未定', '')
+            df['date'] = pd.to_datetime(df['date'])
+            df['date'] = df.date.astype(object).where(df.date.notnull(), None)
+            df['id'] = df['code'] + '-' + str_key + '-' + df['pattern']
             dfs.append(df)
         return dfs
 
     def cleanup(self, dfs):
         combined_df = pd.concat(dfs)
-        combined_df['date'] = combined_df['date'].replace('未定', '')
-        combined_df['date'] = pd.to_datetime(combined_df['date'])
-        combined_df['date'] = combined_df.date.astype(object).where(combined_df.date.notnull(), None)
         return combined_df
 
     def run(self):
@@ -105,9 +110,12 @@ class EarningsDataController():
         )
 
         print('upserting...')
-        session.execute(on_conflict_stmt)
-        session.commit()
-        print('executed!')
+        try:
+            session.execute(on_conflict_stmt)
+            session.commit()
+            print('executed!')
+        except psycopg2.ProgrammingError as e:
+            print(e)
 
 
 if __name__ == '__main__':
