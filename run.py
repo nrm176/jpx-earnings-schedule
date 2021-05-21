@@ -45,7 +45,8 @@ class EarningsDataController():
 
         xlses = []
         for a in soup.find_all('a', href=True):
-            if a['href'].endswith('.xls'):
+            if a['href'].endswith('.xlsx'):
+                print('appending {}'.format(a['href']))
                 xlses.append(a['href'])
         return xlses
 
