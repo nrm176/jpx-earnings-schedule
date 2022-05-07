@@ -9,6 +9,8 @@ from os.path import join, dirname
 import traceback
 import psycopg2
 import numpy as np
+import logging
+logging.basicConfig(level = logging.INFO)
 
 ON_HEROKU = os.environ.get("ON_HEROKU", False)
 if not ON_HEROKU:
@@ -27,6 +29,7 @@ PATTERN_MAPPING = {
 
 BASE_FILE_PATH = '/tmp/' if ON_HEROKU else './'
 
+
 class EarningsDataController():
     def __init__(self):
         pass
@@ -36,7 +39,7 @@ class EarningsDataController():
         save_to = '{}{}'.format(BASE_FILE_PATH, file_name)
         if res.status_code == 200:
             open(save_to, 'wb').write(res.content)
-            print('Done')
+            logging.info('Done')
             return save_to
 
     def get_hrefs(self):
@@ -46,13 +49,14 @@ class EarningsDataController():
         xlses = []
         for a in soup.find_all('a', href=True):
             if a['href'].endswith('.xlsx'):
-                print('appending {}'.format(a['href']))
+                logging.info('appending {}'.format(a['href']))
                 xlses.append(a['href'])
         return xlses
 
     def clean_dataframe(self, df):
         df = df.dropna()
         df = df.rename(columns=COLUMN_MAPPING)
+        df = df[['date', 'code', 'name', 'term', 'segment', 'pattern', 'market']]
         df['pattern'] = df['pattern'].map(PATTERN_MAPPING)
         df['code'] = df['code'].astype(int)
         df['code'] = df['code'].astype(str)
@@ -73,7 +77,7 @@ class EarningsDataController():
             str_key = idx_key.split('_')[0]
             df = pd.read_excel(file_path, skiprows=2)
             df = self.clean_dataframe(df)
-            df['date']=df['date'].replace('未定', '')
+            df['date'] = df['date'].replace('未定', '')
             df['date'] = pd.to_datetime(df['date'])
             df['date'] = df.date.astype(object).where(df.date.notnull(), None)
             df['id'] = df['code'] + '-' + str_key + '-' + df['pattern']
@@ -103,20 +107,21 @@ class EarningsDataController():
 
         update_cols = [c.name for c in table.c
                        if c not in list(table.primary_key.columns)
-                       and c.name not in []]
+                       and c.name not in ['']]
+        logging.info(update_cols)
 
         on_conflict_stmt = stmt.on_conflict_do_update(
             index_elements=table.primary_key.columns,
             set_={k: getattr(stmt.excluded, k) for k in update_cols},
         )
 
-        print('upserting...')
+        logging.info('upserting...')
         try:
             session.execute(on_conflict_stmt)
             session.commit()
-            print('executed!')
+            logging.info('executed!')
         except psycopg2.ProgrammingError as e:
-            print(e)
+            logging.error(e)
 
 
 if __name__ == '__main__':

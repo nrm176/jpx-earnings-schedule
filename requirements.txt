@@ -1,4 +1,4 @@
-sqlalchemy < 1.4.0
+sqlalchemy
 beautifulsoup4
 python-dotenv
 requests
