@@ -2,10 +2,9 @@ from sqlalchemy import *
 from sqlalchemy.orm import *
 import os
 
-DATABASE = os.environ.get('DATABASE_URL')
-
+DATABASE_URL = os.environ.get('DATABASE_URL').replace('postgres', 'postgresql')
 # setting for db
-ENGINE = create_engine(DATABASE, encoding='utf-8', echo=False)
+ENGINE = create_engine(DATABASE_URL, encoding='utf-8', echo=False)
 
 META = MetaData(bind=ENGINE)
 META.reflect()

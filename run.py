@@ -20,8 +20,6 @@ if not ON_HEROKU:
 from db import session, ENGINE
 
 JPX_URL = os.environ.get('JPX_URL')
-DATABASE_URL = os.environ.get('DATABASE_URL')
-DATABASE_URL = DATABASE_URL.replace('postgres', 'postgresql')
 COLUMN_MAPPING = {'発表予定日': 'date', 'コード': 'code', '会社名': 'name', '決算期末': 'term', '業種名': 'segment', '種別': 'pattern',
                   '市場区分': 'market'}
 PATTERN_MAPPING = {
