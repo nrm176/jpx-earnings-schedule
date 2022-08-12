@@ -124,5 +124,8 @@ class EarningsDataController():
 
 
 if __name__ == '__main__':
+    logging.info('start')
     controller = EarningsDataController()
     controller.run()
+    logging.info('done')
+
