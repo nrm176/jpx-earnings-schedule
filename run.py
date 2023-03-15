@@ -79,7 +79,10 @@ class EarningsDataController():
             df['date'] = df['date'].replace('未定', '')
             df['date'] = pd.to_datetime(df['date'])
             df['date'] = df.date.astype(object).where(df.date.notnull(), None)
-            df['id'] = df['code'] + '-' + str_key + '-' + df['pattern']
+            try:
+                df['id'] = df['code'] + '-' + str_key + '-' + df['pattern'] + '_' + df['date'].dt.strftime('%Y-%m')
+            except AttributeError as ae:
+                df['id'] = df['code'] + '-' + str_key + '-' + df['pattern'] + '_undecided'
             dfs.append(df)
         return dfs
 
