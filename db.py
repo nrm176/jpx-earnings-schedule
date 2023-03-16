@@ -2,7 +2,7 @@ from sqlalchemy import *
 from sqlalchemy.orm import *
 import os
 
-DATABASE_URL = os.environ.get('HEROKU_POSTGRESQL_COBALT').replace('postgres', 'postgresql')
+DATABASE_URL = os.environ.get('HEROKU_POSTGRESQL_COBALT_URL').replace('postgres', 'postgresql')
 # setting for db
 ENGINE = create_engine(DATABASE_URL, encoding='utf-8', echo=False)
 
