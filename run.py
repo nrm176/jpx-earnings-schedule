@@ -6,21 +6,21 @@ from model import EarningsSchedule, Base
 import os
 from dotenv import load_dotenv
 from os.path import join, dirname
-import traceback
 import psycopg2
-import numpy as np
 import logging
-logging.basicConfig(level = logging.INFO)
+
+logging.basicConfig(level=logging.INFO)
 
 ON_HEROKU = os.environ.get("ON_HEROKU", False)
 if not ON_HEROKU:
     dotenv_path = join(dirname(__file__), '.env')
     load_dotenv(dotenv_path)
 
-from db import session, ENGINE
+from db import session, engine
 
 JPX_URL = os.environ.get('JPX_URL')
-COLUMN_MAPPING = {'発表予定日': 'date', 'コード': 'code', '会社名': 'name', '決算期末': 'term', '業種名': 'segment', '種別': 'pattern',
+COLUMN_MAPPING = {'発表予定日': 'date', 'コード': 'code', '会社名': 'name', '決算期末': 'term', '業種名': 'segment',
+                  '種別': 'pattern',
                   '市場区分': 'market'}
 PATTERN_MAPPING = {
     '第３四半期': '3Q', '第２四半期': '2Q', '第１四半期': '1Q', '本決算': '4Q', '-': ''
@@ -73,7 +73,6 @@ class EarningsDataController():
         dfs = []
         for file_path in file_paths:
             idx_key = file_path.split('/')[-1].replace('.xls', '')
-            str_key = idx_key.split('_')[0]
             df = pd.read_excel(file_path, skiprows=2)
             df = self.clean_dataframe(df)
             df['date'] = df['date'].replace('未定', '')
@@ -99,7 +98,7 @@ class EarningsDataController():
         self.upsert_to_postgres(df)
 
     def create_table_if_not_exists(self):
-        Base.metadata.create_all(ENGINE)
+        Base.metadata.create_all(engine)
 
     def upsert_to_postgres(self, df):
         values = df.to_dict('records')
@@ -131,4 +130,3 @@ if __name__ == '__main__':
     controller = EarningsDataController()
     controller.run()
     logging.info('done')
-
