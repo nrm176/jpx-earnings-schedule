@@ -72,21 +72,22 @@ class EarningsDataController():
     def generate_dataframe(self, file_paths):
         dfs = []
         for file_path in file_paths:
-            idx_key = file_path.split('/')[-1].replace('.xls', '')
             df = pd.read_excel(file_path, skiprows=2)
             df = self.clean_dataframe(df)
             df['date'] = df['date'].replace('未定', '')
-            df['date'] = pd.to_datetime(df['date'])
+            df['date'] = pd.to_datetime(df['date'], format='%Y-%m-%d', errors='coerce')
             df['date'] = df.date.astype(object).where(df.date.notnull(), None)
             try:
-                df['id'] = df['code'] + '-' + df['pattern'] + '_' + df['date'].dt.year
+                df['id'] = df['code'] + '-' + df['pattern'] + '_' + pd.DatetimeIndex(df['date']).strftime('%Y')
             except AttributeError as ae:
+                logging.info('AttributeError: {}'.format(ae))
                 df['id'] = df['code'] + '-' + df['pattern'] + '_undecided'
             dfs.append(df)
         return dfs
 
     def cleanup(self, dfs):
         combined_df = pd.concat(dfs)
+        combined_df = combined_df.drop_duplicates(subset='id', keep="last")
         return combined_df
 
     def run(self):
