@@ -24,5 +24,5 @@ def run(dry_run=False):
 
 if __name__ == '__main__':
     logging.info('start')
-    run(dry_run=True)
+    run(dry_run=False)
     logging.info('done')
