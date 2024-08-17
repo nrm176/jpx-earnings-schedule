@@ -3,3 +3,6 @@
 .idea
 *.xlsx
 *.csv
+excels
+*.pyc
+.idea

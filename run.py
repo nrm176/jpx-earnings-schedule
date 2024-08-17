@@ -1,133 +1,28 @@
-import pandas as pd
-from bs4 import BeautifulSoup
-import requests
-from sqlalchemy.dialects import postgresql
-from model import EarningsSchedule, Base
-import os
-from dotenv import load_dotenv
-from os.path import join, dirname
-import psycopg2
 import logging
-
+from controllers import EarningsDataController, JpxExcelDataController
 logging.basicConfig(level=logging.INFO)
 
-ON_HEROKU = os.environ.get("ON_HEROKU", False)
-if not ON_HEROKU:
-    dotenv_path = join(dirname(__file__), '.env')
-    load_dotenv(dotenv_path)
 
-from db import session, engine
+def run(dry_run=False):
+    jpx_excel_data_controller = JpxExcelDataController()
+    earnings_data_controller = EarningsDataController()
 
-JPX_URL = os.environ.get('JPX_URL')
-COLUMN_MAPPING = {'発表予定日': 'date', 'コード': 'code', '会社名': 'name', '決算期末': 'term', '業種名': 'segment',
-                  '種別': 'pattern',
-                  '市場区分': 'market'}
-PATTERN_MAPPING = {
-    '第３四半期': '3Q', '第２四半期': '2Q', '第１四半期': '1Q', '本決算': '4Q', '-': ''
-}
+    logging.info('downloading files and generating dataframes')
+    hrefs = jpx_excel_data_controller.get_hrefs()
+    paths = jpx_excel_data_controller.download(hrefs)
 
-BASE_FILE_PATH = '/tmp/' if ON_HEROKU else './'
+    dfs = earnings_data_controller.generate_dataframe(paths)
+    df = earnings_data_controller.cleanup(dfs)
+    earnings_data_controller.create_table_if_not_exists()
 
-
-class EarningsDataController():
-    def __init__(self):
-        pass
-
-    def download_xls(self, file_name, url):
-        res = requests.get(url)
-        save_to = '{}{}'.format(BASE_FILE_PATH, file_name)
-        if res.status_code == 200:
-            open(save_to, 'wb').write(res.content)
-            logging.info('Done')
-            return save_to
-
-    def get_hrefs(self):
-        response = requests.get(JPX_URL)
-        soup = BeautifulSoup(response.text, 'lxml')
-
-        xlses = []
-        for a in soup.find_all('a', href=True):
-            if a['href'].endswith('.xlsx'):
-                logging.info('appending {}'.format(a['href']))
-                xlses.append(a['href'])
-        return xlses
-
-    def clean_dataframe(self, df):
-        df = df.dropna()
-        df = df.rename(columns=COLUMN_MAPPING)
-        df = df[['date', 'code', 'name', 'term', 'segment', 'pattern', 'market']]
-        df['pattern'] = df['pattern'].map(PATTERN_MAPPING)
-        df['code'] = df['code'].astype(int)
-        df['code'] = df['code'].astype(str)
-        return df
-
-    def download(self, xlses):
-        file_paths = []
-        for idx, xls in enumerate(xlses):
-            file_name = xls.split('/')[-1]
-            path = self.download_xls(file_name, '{}{}'.format('https://www.jpx.co.jp', xls))
-            file_paths.append(path)
-        return file_paths
-
-    def generate_dataframe(self, file_paths):
-        dfs = []
-        for file_path in file_paths:
-            df = pd.read_excel(file_path, skiprows=2)
-            df = self.clean_dataframe(df)
-            df['date'] = df['date'].replace('未定', '')
-            df['date'] = pd.to_datetime(df['date'], format='%Y-%m-%d', errors='coerce')
-            df['date'] = df.date.astype(object).where(df.date.notnull(), None)
-            try:
-                df['id'] = df['code'] + '-' + df['pattern'] + '_' + pd.DatetimeIndex(df['date']).strftime('%Y')
-            except AttributeError as ae:
-                logging.info('AttributeError: {}'.format(ae))
-                df['id'] = df['code'] + '-' + df['pattern'] + '_undecided'
-            dfs.append(df)
-        return dfs
-
-    def cleanup(self, dfs):
-        combined_df = pd.concat(dfs)
-        combined_df = combined_df.drop_duplicates(subset='id', keep="last")
-        return combined_df
-
-    def run(self):
-        hrefs = self.get_hrefs()
-        paths = self.download(hrefs)
-        dfs = self.generate_dataframe(paths)
-        df = self.cleanup(dfs)
-        self.create_table_if_not_exists()
-        self.upsert_to_postgres(df)
-
-    def create_table_if_not_exists(self):
-        Base.metadata.create_all(engine)
-
-    def upsert_to_postgres(self, df):
-        values = df.to_dict('records')
-        table = EarningsSchedule.__table__
-
-        stmt = postgresql.insert(table).values(values)
-
-        update_cols = [c.name for c in table.c
-                       if c not in list(table.primary_key.columns)
-                       and c.name not in ['']]
-        logging.info(update_cols)
-
-        on_conflict_stmt = stmt.on_conflict_do_update(
-            index_elements=table.primary_key.columns,
-            set_={k: getattr(stmt.excluded, k) for k in update_cols},
-        )
-
-        logging.info('upserting...')
-        try:
-            session.execute(on_conflict_stmt)
-            session.commit()
-            logging.info('executed!')
-        except psycopg2.ProgrammingError as e:
-            logging.error(e)
+    if dry_run:
+        logging.info('dry run. not upserting to postgres')
+        return
+    logging.info('upserting to postgres')
+    earnings_data_controller.upsert_to_postgres(df)
 
 
 if __name__ == '__main__':
     logging.info('start')
-    controller = EarningsDataController()
-    controller.run()
+    run(dry_run=True)
     logging.info('done')
